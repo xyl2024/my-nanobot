@@ -2,6 +2,11 @@
 
 此文件为 Claude Code (claude.ai/code) 在本项目中工作时提供指导。
 
+## 顶级规则
+
+- 使用 `uv add <package>` 的方式添加依赖。
+- 使用 `uv run <script>` 运行python脚本，不要使用 `python <script>`，或者先激活虚拟环境后再执行 python 命令，不要使用默认的python环境。
+
 ## 项目概述
 
 **nanobot** 是一个超轻量级的个人 AI 助手框架（核心代码约 4000 行），可连接多个聊天平台（Telegram、Discord、WhatsApp、Feishu、Slack、QQ、DingTalk、Email、MoChat）。

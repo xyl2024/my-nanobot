@@ -238,7 +238,8 @@ class GatewayConfig(Base):
 class WebSearchConfig(Base):
     """Web search tool configuration."""
 
-    api_key: str = ""  # Brave Search API key
+    api_key: str = ""  # Deprecated: use tavily_api_key instead
+    tavily_api_key: str = ""  # Tavily API key
     max_results: int = 5
 
 
