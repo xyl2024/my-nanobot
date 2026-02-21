@@ -198,20 +198,31 @@ def onboard():
 
 
 
+def _get_builtin_templates() -> dict[str, str]:
+    """Get built-in template content from my_prompts directory."""
+    import nanobot
+
+    # Find project root (parent of nanobot package)
+    package_dir = Path(nanobot.__file__).parent
+    project_root = package_dir.parent
+    prompts_dir = project_root / "my_prompts"
+
+    templates = {}
+    if prompts_dir.exists():
+        for filename in prompts_dir.glob("*.md"):
+            content = filename.read_text(encoding="utf-8")
+            templates[filename.name] = content
+
+    return templates
+
+
 def _create_workspace_templates(workspace: Path):
     """Create default workspace template files."""
-    templates = {
-        "AGENTS.md": """# Agent 指令
+    # Try to load templates from my_prompts directory
+    templates = _get_builtin_templates()
 
-你是一个有用的 AI 助手。保持简洁、准确和友好。
-
-## 行为准则
-
-- 行动前先解释你要做什么
-- 请求不明确时，请求用户澄清
-- 使用工具帮助完成任务
-- 重要信息记入 memory/MEMORY.md；过去的事件记录在 memory/HISTORY.md
-""",
+    # Fallback to built-in defaults if no custom templates found
+    defaults = {
         "SOUL.md": """# 灵魂
 
 我是 nanobot，一个轻量级的 AI 助手。
@@ -239,8 +250,10 @@ def _create_workspace_templates(workspace: Path):
 - 语言：（你的首选语言）
 """,
     }
-    
-    for filename, content in templates.items():
+
+    # Use custom templates if available, otherwise use defaults
+    for filename, default_content in defaults.items():
+        content = templates.get(filename, default_content)
         file_path = workspace / filename
         if not file_path.exists():
             file_path.write_text(content, encoding="utf-8")
