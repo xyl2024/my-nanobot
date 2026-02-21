@@ -181,6 +181,9 @@ class AgentLoop:
         while iteration < self.max_iterations:
             iteration += 1
 
+            # 收集本迭代的所有消息
+            iteration_messages: list[str] = []
+
             response = await self.provider.chat(
                 messages=messages,
                 tools=self.tools.get_definitions(),
@@ -190,11 +193,13 @@ class AgentLoop:
             )
 
             if response.has_tool_calls:
-                if on_progress:
-                    clean = self._strip_think(response.content)
-                    if clean:
-                        await on_progress(clean)
-                    await on_progress(self._tool_hint(response.tool_calls))
+                # 1. 添加 LLM 思考内容
+                clean = self._strip_think(response.content)
+                if clean:
+                    iteration_messages.append(clean)
+
+                # 2. 添加工具调用提示
+                iteration_messages.append(f"🔧 调用工具: {self._tool_hint(response.tool_calls)}")
 
                 tool_call_dicts = [
                     {
@@ -212,15 +217,24 @@ class AgentLoop:
                     reasoning_content=response.reasoning_content,
                 )
 
+                # 3. 执行工具并收集结果
                 for tool_call in response.tool_calls:
                     tools_used.append(tool_call.name)
                     args_str = json.dumps(tool_call.arguments, ensure_ascii=False)
                     logger.info("Tool call: {}({})", tool_call.name, args_str[:200])
                     result = await self.tools.execute(tool_call.name, tool_call.arguments)
+                    # 截断过长的结果
+                    result_preview = result[:200] + "..." if len(str(result)) > 200 else result
+                    iteration_messages.append(f"✓ {tool_call.name}: {result_preview}")
                     messages = self.context.add_tool_result(
                         messages, tool_call.id, tool_call.name, result
                     )
+
+                # 4. 迭代结束，整合成一条消息发送
+                if on_progress:
+                    await on_progress("\n\n".join(iteration_messages))
             else:
+                # 无工具调用，直接返回最终响应（由调用方发送）
                 final_content = self._strip_think(response.content)
                 break
 
