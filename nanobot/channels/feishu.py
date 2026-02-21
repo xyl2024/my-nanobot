@@ -662,8 +662,9 @@ class FeishuChannel(BaseChannel):
             chat_type = message.chat_type
             msg_type = message.message_type
 
-            # Add reaction
-            await self._add_reaction(message_id, "THUMBSUP")
+            # Add reaction (configurable)
+            if self.config.reaction_on_receive:
+                await self._add_reaction(message_id, self.config.reaction_emoji)
 
             # Parse content
             content_parts = []
