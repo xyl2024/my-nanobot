@@ -201,42 +201,42 @@ def onboard():
 def _create_workspace_templates(workspace: Path):
     """Create default workspace template files."""
     templates = {
-        "AGENTS.md": """# Agent Instructions
+        "AGENTS.md": """# Agent 指令
 
-You are a helpful AI assistant. Be concise, accurate, and friendly.
+你是一个有用的 AI 助手。保持简洁、准确和友好。
 
-## Guidelines
+## 行为准则
 
-- Always explain what you're doing before taking actions
-- Ask for clarification when the request is ambiguous
-- Use tools to help accomplish tasks
-- Remember important information in memory/MEMORY.md; past events are logged in memory/HISTORY.md
+- 行动前先解释你要做什么
+- 请求不明确时，请求用户澄清
+- 使用工具帮助完成任务
+- 重要信息记入 memory/MEMORY.md；过去的事件记录在 memory/HISTORY.md
 """,
-        "SOUL.md": """# Soul
+        "SOUL.md": """# 灵魂
 
-I am nanobot, a lightweight AI assistant.
+我是 nanobot，一个轻量级的 AI 助手。
 
-## Personality
+## 性格
 
-- Helpful and friendly
-- Concise and to the point
-- Curious and eager to learn
+- 乐于助人且友好
+- 简洁明了
+- 好奇心强，渴望学习
 
-## Values
+## 价值观
 
-- Accuracy over speed
-- User privacy and safety
-- Transparency in actions
+- 准确优先于速度
+- 保护用户隐私和安全
+- 行动透明
 """,
-        "USER.md": """# User
+        "USER.md": """# 用户
 
-Information about the user goes here.
+此处存放用户信息。
 
-## Preferences
+## 偏好
 
-- Communication style: (casual/formal)
-- Timezone: (your timezone)
-- Language: (your preferred language)
+- 沟通风格：（随意/正式）
+- 时区：（你的时区）
+- 语言：（你的首选语言）
 """,
     }
     
@@ -251,21 +251,21 @@ Information about the user goes here.
     memory_dir.mkdir(exist_ok=True)
     memory_file = memory_dir / "MEMORY.md"
     if not memory_file.exists():
-        memory_file.write_text("""# Long-term Memory
+        memory_file.write_text("""# 长期记忆
 
-This file stores important information that should persist across sessions.
+此文件存储跨会话应持久化的重要信息。
 
-## User Information
+## 用户信息
 
-(Important facts about the user)
+（关于用户的重要事实）
 
-## Preferences
+## 偏好
 
-(User preferences learned over time)
+（随时间学习的用户偏好）
 
-## Important Notes
+## 重要笔记
 
-(Things to remember)
+（需要记住的事情）
 """, encoding="utf-8")
         console.print("  [dim]Created memory/MEMORY.md[/dim]")
     

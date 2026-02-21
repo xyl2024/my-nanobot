@@ -18,7 +18,7 @@ class ContextBuilder:
     into a coherent prompt for the LLM.
     """
     
-    BOOTSTRAP_FILES = ["AGENTS.md", "SOUL.md", "USER.md", "TOOLS.md", "IDENTITY.md"]
+    BOOTSTRAP_FILES = ["SOUL.md", "USER.md"]
     
     def __init__(self, workspace: Path):
         self.workspace = workspace
@@ -48,7 +48,7 @@ class ContextBuilder:
         # Memory context
         memory = self.memory.get_memory_context()
         if memory:
-            parts.append(f"# Memory\n\n{memory}")
+            parts.append(f"# 长期记忆\n\n{memory}")
         
         # Skills - progressive loading
         # 1. Always-loaded skills: include full content
@@ -56,16 +56,17 @@ class ContextBuilder:
         if always_skills:
             always_content = self.skills.load_skills_for_context(always_skills)
             if always_content:
-                parts.append(f"# Active Skills\n\n{always_content}")
-        
+                parts.append(f"# 已加载的技能\n\n{always_content}")
+
         # 2. Available skills: only show summary (agent uses read_file to load)
         skills_summary = self.skills.build_skills_summary()
         if skills_summary:
-            parts.append(f"""# Skills
+            parts.append(f"""# 技能（Skills）
 
-The following skills extend your capabilities. To use a skill, read its SKILL.md file using the read_file tool.
-Skills with available="false" need dependencies installed first - you can try installing them with apt/brew.
+以下技能可以扩展你的能力。要使用某个技能，请使用 read_file 工具读取其 SKILL.md 文件，再按其中的提示决定下一步行动。
+注意 available="false" 的技能需要先安装依赖项，遇到需要安装依赖项的，请停止工具调用、停止工具调用、停止工具调用，并将详细的依赖告知用户。
 
+技能摘要（Skills Summary）：
 {skills_summary}""")
         
         return "\n\n---\n\n".join(parts)
@@ -79,36 +80,31 @@ Skills with available="false" need dependencies installed first - you can try in
         workspace_path = str(self.workspace.expanduser().resolve())
         system = platform.system()
         runtime = f"{'macOS' if system == 'Darwin' else system} {platform.machine()}, Python {platform.python_version()}"
-        
-        return f"""# nanobot 🐈
 
-You are nanobot, a helpful AI assistant. You have access to tools that allow you to:
-- Read, write, and edit files
-- Execute shell commands
-- Search the web and fetch web pages
-- Send messages to users on chat channels
-- Spawn subagents for complex background tasks
+        return f"""# 基本描述
 
-## Current Time
+以下是你的固有工具：
+- 文件读写操作
+- 执行 shell 命令
+- 搜索网页和获取网页内容
+- 为复杂的后台任务生成子代理
+
+## 当前时间
 {now} ({tz})
 
-## Runtime
+## 运行环境
 {runtime}
 
-## Workspace
-Your workspace is at: {workspace_path}
-- Long-term memory: {workspace_path}/memory/MEMORY.md
-- History log: {workspace_path}/memory/HISTORY.md (grep-searchable)
-- Custom skills: {workspace_path}/skills/{{skill-name}}/SKILL.md
+## 工作空间
+你的工作空间位于：{workspace_path}
+- 长期记忆：{workspace_path}/memory/MEMORY.md
+- 历史记录：{workspace_path}/memory/HISTORY.md（可用 grep 搜索）
+- 自定义技能：{workspace_path}/skills/{{skill-name}}/SKILL.md
 
-IMPORTANT: When responding to direct questions or conversations, reply directly with your text response.
-Only use the 'message' tool when you need to send a message to a specific chat channel (like WhatsApp).
-For normal conversation, just respond with text - do not call the message tool.
-
-Always be helpful, accurate, and concise. Before calling tools, briefly tell the user what you're about to do (one short sentence in the user's language).
-If you need to use tools, call them directly — never send a preliminary message like "Let me check" without actually calling a tool.
-When remembering something important, write to {workspace_path}/memory/MEMORY.md
-To recall past events, grep {workspace_path}/memory/HISTORY.md"""
+始终保持有用、准确和简洁。调用工具前，请用中文简短告诉用户你要做什么（一句话）。
+如果需要使用工具，直接调用即可，不要发送"让我查一下"之类的预回复消息却不真正调用工具。
+记住重要的事情时，写入 {workspace_path}/memory/MEMORY.md
+回顾过去的事件时，用 grep 搜索 {workspace_path}/memory/HISTORY.md"""
     
     def _load_bootstrap_files(self) -> str:
         """Load all bootstrap files from workspace."""
