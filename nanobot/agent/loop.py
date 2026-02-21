@@ -181,6 +181,8 @@ class AgentLoop:
         while iteration < self.max_iterations:
             iteration += 1
 
+            logger.debug("Agent iteration {} started", iteration)
+
             # 收集本迭代的所有消息
             iteration_messages: list[str] = []
 
@@ -192,14 +194,25 @@ class AgentLoop:
                 max_tokens=self.max_tokens,
             )
 
+            # 记录 LLM 响应
+            content_preview = response.content[:100] + "..." if response.content and len(response.content) > 100 else response.content
             if response.has_tool_calls:
-                # 1. 添加 LLM 思考内容
+                logger.info("LLM response (iteration {}): has {} tool calls", iteration, len(response.tool_calls))
+            else:
+                logger.info("LLM response (iteration {}): {}", iteration, content_preview)
+
+            if response.has_tool_calls:
+                # 0. 添加迭代轮次标记
+                iteration_messages.append(f"⌛️迭代轮次: {iteration}")
+
+                # 1. 添加 LLM 推理内容
+                if response.reasoning_content:
+                    iteration_messages.append(f"💭{response.reasoning_content.replace('\n', '')}")
+
+                # 2. 添加去思考标签后的内容（如果有）
                 clean = self._strip_think(response.content)
                 if clean:
                     iteration_messages.append(clean)
-
-                # 2. 添加工具调用提示
-                iteration_messages.append(f"🔧 调用工具: {self._tool_hint(response.tool_calls)}")
 
                 tool_call_dicts = [
                     {
@@ -221,21 +234,27 @@ class AgentLoop:
                 for tool_call in response.tool_calls:
                     tools_used.append(tool_call.name)
                     args_str = json.dumps(tool_call.arguments, ensure_ascii=False)
-                    logger.info("Tool call: {}({})", tool_call.name, args_str[:200])
+                    logger.info("Tool call: {}({})", tool_call.name, args_str[:50])
                     result = await self.tools.execute(tool_call.name, tool_call.arguments)
+                    if isinstance(result, str):
+                        result = result.replace('\n', '')
                     # 截断过长的结果
-                    result_preview = result[:200] + "..." if len(str(result)) > 200 else result
-                    iteration_messages.append(f"✓ {tool_call.name}: {result_preview}")
+                    result_preview = result[:50] + "..." if len(str(result)) > 200 else result
+                    iteration_messages.append(f"⚙️{tool_call.name} - {result_preview}")
                     messages = self.context.add_tool_result(
                         messages, tool_call.id, tool_call.name, result
                     )
 
                 # 4. 迭代结束，整合成一条消息发送
+                logger.info("Agent iteration {} completed", iteration)
                 if on_progress:
                     await on_progress("\n\n".join(iteration_messages))
             else:
                 # 无工具调用，直接返回最终响应（由调用方发送）
                 final_content = self._strip_think(response.content)
+                # 添加最终迭代轮次标记
+                if iteration > 1:
+                    final_content = f"✅最终迭代轮次: {iteration}\n\n{final_content}"
                 break
 
         return final_content, tools_used
