@@ -1,20 +1,15 @@
-# nanobot Skills
+# 技能(skills)
 
-This directory contains built-in skills that extend nanobot's capabilities.
+此目录包含内置技能，用于扩展能力。
 
-## Skill Format
+## 技能格式
 
-Each skill is a directory containing a `SKILL.md` file with:
-- YAML frontmatter (name, description, metadata)
-- Markdown instructions for the agent
+每个技能都是一个包含 `SKILL.md` 文件的目录，包括：
+- YAML frontmatter（名称、描述、元数据）
+- AI Agent的 Markdown 指令
 
-## Attribution
+## 可用技能
 
-These skills are adapted from [OpenClaw](https://github.com/openclaw/openclaw)'s skill system.
-The skill format and metadata structure follow OpenClaw's conventions to maintain compatibility.
-
-## Available Skills
-
-| Skill | Description |
+| 技能 | 描述 |
 |-------|-------------|
-| `skill-creator` | Create new skills |
+| `skill-creator` | 用于创建新技能 |
