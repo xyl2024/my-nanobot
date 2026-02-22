@@ -20,12 +20,19 @@ nanobot = "nanobot.cli.commands:app"
 
 ```mermaid
 flowchart TD
-    A["uv run nanobot gateway"] --> B[load_config<br/>读取 ~/.nanobot/config.json<br/>包含: providers, channels, agents, tools 配置]
+    A["uv run nanobot gateway"] --> B[load_config]
 
-    B --> C[创建核心组件<br/>• MessageBus - 异步消息队列<br/>• LLMProvider - LLM 提供商<br/>• SessionManager - 会话管理<br/>• CronService - 定时任务服务<br/>• HeartbeatService - 心跳服务<br/>• AgentLoop - 核心处理引擎<br/>• ChannelManager - 渠道管理]
+    B --> C[创建核心组件]
 
-    C --> D[启动异步主循环<br/>asyncio.gather<br/>• cron.start()<br/>• heartbeat.start()<br/>• agent.run()<br/>• channels.start_all()]
+    C --> D[启动异步主循环]
+
+    D --> E[cron.start]
+    D --> F[heartbeat.start]
+    D --> G[agent.run]
+    D --> H[channels.start_all]
 ```
+
+> 注: 核心组件包括 MessageBus, LLMProvider, SessionManager, CronService, HeartbeatService, AgentLoop, ChannelManager
 
 ---
 
@@ -72,17 +79,17 @@ while running:
 
 ```mermaid
 flowchart TD
-    A[用户发送消息] --> B[Channel<br/>• 接收消息<br/>• 权限检查 is_allowed()<br/>• 转换为 InboundMessage]
+    A[用户发送消息] --> B[Channel]
 
-    B -->|bus.publish_inbound(msg)| C[MessageBus<br/>inbound queue]
+    B -->|publish_inbound| C[MessageBus<br/>inbound]
 
-    C -->|await bus.consume_inbound()| D[AgentLoop<br/>• 构建上下文<br/>• 调用 LLM<br/>• 执行 Tools]
+    C -->|consume_inbound| D[AgentLoop]
 
-    D -->|bus.publish_outbound(response)| E[MessageBus<br/>outbound queue]
+    D -->|publish_outbound| E[MessageBus<br/>outbound]
 
-    E -->|ChannelManager._dispatch_outbound()| F[Channel.send()<br/>发送响应到用户]
+    E -->|dispatch_outbound| F[Channel.send]
 
-    F --> G[用户收到回复 ✅]
+    F --> G[用户收到回复]
 ```
 
 ---
