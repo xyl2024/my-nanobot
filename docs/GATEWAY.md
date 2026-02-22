@@ -18,42 +18,13 @@ nanobot = "nanobot.cli.commands:app"
 
 ## 二、启动流程
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                   uv run nanobot gateway                    │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│ 1. load_config()                                          │
-│    读取 ~/.nanobot/config.json                              │
-│    包含: providers, channels, agents, tools 配置            │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│ 2. 创建核心组件                                            │
-│                                                              │
-│    • MessageBus        - 异步消息队列，解耦渠道与 Agent    │
-│    • LLMProvider      - LLM 提供商（通过工厂函数创建）     │
-│    • SessionManager   - 会话管理，JSONL 持久化             │
-│    • CronService      - 定时任务服务                       │
-│    • HeartbeatService - 心跳/主动唤醒服务                  │
-│    • AgentLoop       - 核心处理引擎                        │
-│    • ChannelManager  - 渠道生命周期管理                   │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│ 3. 启动异步主循环                                          │
-│                                                              │
-│    asyncio.gather(                                         │
-│        cron.start(),          # 启动定时任务              │
-│        heartbeat.start(),     # 启动心跳服务              │
-│        agent.run(),           # Agent 消息处理循环        │
-│        channels.start_all()   # 启动所有已启用渠道        │
-│    )                                                      │
-└─────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    A["uv run nanobot gateway"] --> B[load_config<br/>读取 ~/.nanobot/config.json<br/>包含: providers, channels, agents, tools 配置]
+
+    B --> C[创建核心组件<br/>• MessageBus - 异步消息队列<br/>• LLMProvider - LLM 提供商<br/>• SessionManager - 会话管理<br/>• CronService - 定时任务服务<br/>• HeartbeatService - 心跳服务<br/>• AgentLoop - 核心处理引擎<br/>• ChannelManager - 渠道管理]
+
+    C --> D[启动异步主循环<br/>asyncio.gather<br/>• cron.start()<br/>• heartbeat.start()<br/>• agent.run()<br/>• channels.start_all()]
 ```
 
 ---
@@ -99,48 +70,19 @@ while running:
 
 ## 四、消息流转
 
-```
-用户发送消息
-     │
-     ▼
-┌──────────────────────────────┐
-│  Channel                    │
-│  - 接收消息                  │
-│  - 权限检查 is_allowed()     │
-│  - 转换为 InboundMessage     │
-└──────────────┬───────────────┘
-               │
-               │ bus.publish_inbound(msg)
-               ▼
-┌──────────────────────────────┐
-│  MessageBus (inbound queue) │
-└──────────────┬───────────────┘
-               │
-               │ await bus.consume_inbound()
-               ▼
-┌──────────────────────────────┐
-│  AgentLoop                  │
-│  - 构建上下文                │
-│  - 调用 LLM                 │
-│  - 执行 Tools               │
-└──────────────┬───────────────┘
-               │
-               │ bus.publish_outbound(response)
-               ▼
-┌──────────────────────────────┐
-│  MessageBus (outbound queue)│
-└──────────────┬───────────────┘
-               │
-               │ ChannelManager._dispatch_outbound()
-               ▼
-┌──────────────────────────────┐
-│  Channel.send()              │
-│  - 发送响应到用户            │
-└──────────────────────────────┘
+```mermaid
+flowchart TD
+    A[用户发送消息] --> B[Channel<br/>• 接收消息<br/>• 权限检查 is_allowed()<br/>• 转换为 InboundMessage]
 
-     │
-     ▼
-   用户收到回复 ✅
+    B -->|bus.publish_inbound(msg)| C[MessageBus<br/>inbound queue]
+
+    C -->|await bus.consume_inbound()| D[AgentLoop<br/>• 构建上下文<br/>• 调用 LLM<br/>• 执行 Tools]
+
+    D -->|bus.publish_outbound(response)| E[MessageBus<br/>outbound queue]
+
+    E -->|ChannelManager._dispatch_outbound()| F[Channel.send()<br/>发送响应到用户]
+
+    F --> G[用户收到回复 ✅]
 ```
 
 ---
