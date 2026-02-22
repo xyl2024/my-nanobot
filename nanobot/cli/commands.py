@@ -381,6 +381,8 @@ def gateway(
         restrict_to_workspace=config.tools.restrict_to_workspace,
         session_manager=session_manager,
         mcp_servers=config.tools.mcp_servers,
+        provider_name=config.get_provider_name(),
+        provider_api_key=config.get_api_key(),
     )
     
     # Set cron callback (needs agent)
@@ -497,6 +499,8 @@ def agent(
         cron_service=cron,
         restrict_to_workspace=config.tools.restrict_to_workspace,
         mcp_servers=config.tools.mcp_servers,
+        provider_name=config.get_provider_name(),
+        provider_api_key=config.get_api_key(),
     )
     
     # Show spinner when logs are off (no output to miss); skip when logs are on
@@ -515,7 +519,9 @@ def agent(
         async def run_once():
             with _thinking_ctx():
                 response = await agent_loop.process_direct(message, session_id, on_progress=_cli_progress)
-            _print_agent_response(response, render_markdown=markdown)
+            # When logs are enabled, logger already outputs the response via logger.info
+            if not logs:
+                _print_agent_response(response, render_markdown=markdown)
             await agent_loop.close_mcp()
 
         asyncio.run(run_once())
@@ -974,6 +980,8 @@ def cron_run(
         exec_config=config.tools.exec,
         restrict_to_workspace=config.tools.restrict_to_workspace,
         mcp_servers=config.tools.mcp_servers,
+        provider_name=config.get_provider_name(),
+        provider_api_key=config.get_api_key(),
     )
 
     store_path = get_data_dir() / "cron" / "jobs.json"
