@@ -14,12 +14,13 @@ nanobot 采用 **事件驱动 + 消息总线** 的架构模式，核心是一个
 │                           nanobot 架构图                                  │
 ├─────────────────────────────────────────────────────────────────────────┤
 │                                                                         │
-│   ┌─────────────┐                    ┌─────────────────────────────┐ │
-│   │   CLI 命令   │                    │     Gateway (HTTP Server)    │ │
-│   │ (commands)  │                    │       (端口 18790)          │ │
-│   └──────┬──────┘                    └──────────────┬──────────────┘ │
-│          │                                            │                │
-│          ▼                                            ▼                │
+│   ┌─────────────────────────────────────────────────────────────────┐ │
+│   │                      nanobot gateway                              │ │
+│   │                 (CLI: nanobot gateway)                           │ │
+│   │                 默认端口: 18790                                   │ │
+│   └────────────────────────────┬────────────────────────────────────┘ │
+│                                │                                       │
+│                                ▼                                       │
 │   ┌─────────────────────────────────────────────────────────────┐    │
 │   │                    MessageBus (消息总线)                     │    │
 │   │  ┌─────────────────┐         ┌─────────────────────────┐   │    │
@@ -218,8 +219,7 @@ system_prompt = """
 
 | 工具 | 功能 | 依赖 |
 |------|------|------|
-| `web_search` | 网络搜索 (Tavily) | tavily |
-| `web_fetch` | 获取网页内容 | httpx, readability |
+| `web` | 网络搜索和网页获取 (Tavily) | tavily, httpx, readability |
 | `shell` | 执行 Shell 命令 | - |
 | `spawn` | 生成子代理 | - |
 | `mcp` | MCP 工具调用 | mcp 库 |
@@ -255,7 +255,9 @@ tools.register(MCPTools(servers=...))
 │       │                                                    │
 │       ├── CustomProvider ──▶ 直连 OpenAI 兼容端点          │
 │       │                                                    │
-│       └── OpenAICodexProvider ──▶ OAuth 认证              │
+│       ├── OpenAICodexProvider ──▶ OAuth 认证              │
+│       │                                                    │
+│       └── TranscriptionProvider ──▶ 语音转文字              │
 │                                                             │
 │   通过 registry.py 自动匹配模型到提供商:                     │
 │   - anthropic/claude-3  ──▶ Anthropic                    │
@@ -479,10 +481,12 @@ tools.register(MyTool())
 
 ## 六、代码规模
 
-- **核心代码**: ~1800 行 (不含渠道和测试)
+- **核心代码**: ~2000 行 (不含渠道和测试)
 - **Agent 核心** (`loop.py`): ~418 行
+- **上下文构建** (`context.py`): ~239 行
 - **渠道管理** (`manager.py`): ~227 行
 - **会话管理** (`session/manager.py`): ~200 行
+- **记忆系统** (`memory.py`): ~138 行
 - **支持渠道**: 9 个
 - **支持 LLM**: 15+
 
@@ -496,16 +500,18 @@ nanobot/
 │   ├── loop.py           # 主循环 (~418行)
 │   ├── context.py        # 上下文构建
 │   ├── memory.py         # 记忆系统
+│   ├── skills.py         # 技能加载器
+│   ├── subagent.py       # 后台任务执行
 │   ├── tools/            # 工具集
 │   │   ├── base.py
-│   │   ├── web_search.py
-│   │   ├── web_fetch.py
+│   │   ├── web.py        # 网络搜索和网页获取
 │   │   ├── shell.py
 │   │   ├── spawn.py
 │   │   ├── cron.py
 │   │   ├── filesystem.py
-│   │   └── mcp.py
-│   └── registry.py
+│   │   ├── mcp.py
+│   │   └── registry.py   # 工具注册表
+│
 │
 ├── channels/             # 渠道实现
 │   ├── base.py          # BaseChannel 抽象
@@ -526,39 +532,37 @@ nanobot/
 │
 ├── providers/           # LLM 提供商
 │   ├── base.py          # Provider 抽象
-│   ├── lite_llm.py      # LiteLLM 包装
-│   ├── custom.py        # 自定义端点
+│   ├── litellm_provider.py  # LiteLLM 包装
+│   ├── custom_provider.py   # 自定义端点
+│   ├── openai_codex_provider.py  # OAuth 认证
+│   ├── transcription.py     # 语音转文字
 │   └── registry.py      # 模型->提供商映射
 │
 ├── session/             # 会话管理
-│   ├── manager.py      # SessionManager (~200行)
-│   └── models.py       # Session 数据模型
+│   └── manager.py      # SessionManager (~200行)
 │
 ├── config/              # 配置系统
 │   ├── schema.py       # Pydantic 模型
-│   └── load.py         # 配置加载逻辑
+│   └── loader.py       # 配置加载逻辑
 │
 ├── cron/                # 定时任务
 │   ├── service.py      # Cron 服务
-│   └── models.py       # 任务模型
+│   └── types.py        # 任务类型定义
+│
+├── heartbeat/           # 主动唤醒事件
+│   └── service.py      # 心跳服务
 │
 ├── commands/            # CLI 命令
-│   ├── __init__.py
-│   ├── run.py
-│   ├── serve.py
-│   ├── shell.py
-│   └── cron.py
+│   └── commands.py     # 使用 typer 构建的 CLI
 │
-├── gateway/             # HTTP 网关
-│   └── server.py       # FastAPI 服务
-│
-├── skills/              # 内置技能
-│   ├── ai-news-fetcher/
+├── skills/              # 捆绑的技能
 │   └── skill-creator/
 │
+my_skills/               # 用户自定义技能
+│   └── ai-news-fetcher/
+│
 └── utils/               # 工具函数
-    ├── log.py
-    └── platform.py
+    └── helpers.py      # 辅助函数
 ```
 
 ---
