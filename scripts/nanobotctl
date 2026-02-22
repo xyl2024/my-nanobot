@@ -1,0 +1,113 @@
+#!/bin/bash
+
+# nanobot gateway 管理脚本
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+
+PID_FILE="/tmp/nanobot_gateway.pid"
+
+start() {
+    # 检查是否已运行
+    if [ -f "$PID_FILE" ]; then
+        PID=$(cat "$PID_FILE")
+        if ps -p "$PID" > /dev/null 2>&1; then
+            echo "nanobot gateway 已在运行中 (PID: $PID)"
+            return 1
+        fi
+    fi
+
+    # 查找并杀掉旧进程（如果有残留）
+    OLD_PIDS=$(pgrep -f "nanobot gateway")
+    if [ -n "$OLD_PIDS" ]; then
+        echo "发现旧进程，正在清理..."
+        echo "$OLD_PIDS" | xargs kill 2>/dev/null
+        sleep 1
+    fi
+
+    echo "启动 nanobot gateway..."
+    nohup uv run nanobot gateway > /tmp/nanobot_gateway.log 2>&1 &
+    PID=$!
+    echo "$PID" > "$PID_FILE"
+    echo "已启动 (PID: $PID)"
+}
+
+stop() {
+    if [ -f "$PID_FILE" ]; then
+        PID=$(cat "$PID_FILE")
+        if ps -p "$PID" > /dev/null 2>&1; then
+            echo "停止 nanobot gateway (PID: $PID)..."
+            kill "$PID"
+            rm -f "$PID_FILE"
+            echo "已停止"
+            return 0
+        fi
+    fi
+
+    # 通过进程名查找
+    PIDS=$(pgrep -f "nanobot gateway" | grep -v $$)
+    if [ -n "$PIDS" ]; then
+        echo "停止 nanobot gateway (PIDs: $PIDS)..."
+        echo "$PIDS" | xargs kill 2>/dev/null
+        rm -f "$PID_FILE"
+        echo "已停止"
+    else
+        echo "nanobot gateway 未运行"
+    fi
+}
+
+restart() {
+    stop
+    sleep 1
+    start
+}
+
+status() {
+    if [ -f "$PID_FILE" ]; then
+        PID=$(cat "$PID_FILE")
+        if ps -p "$PID" > /dev/null 2>&1; then
+            echo "运行中 (PID: $PID)"
+            return 0
+        fi
+    fi
+
+    # 备用检查
+    PIDS=$(pgrep -f "nanobot gateway" | grep -v $$)
+    if [ -n "$PIDS" ]; then
+        echo "运行中 (PIDs: $PIDS)"
+        return 0
+    fi
+
+    echo "未运行"
+    return 1
+}
+
+log() {
+    if [ -f "/tmp/nanobot_gateway.log" ]; then
+        tail -f /tmp/nanobot_gateway.log
+    else
+        echo "日志文件不存在"
+    fi
+}
+
+case "$1" in
+    start)
+        start
+        ;;
+    stop)
+        stop
+        ;;
+    restart)
+        restart
+        ;;
+    status)
+        status
+        ;;
+    log)
+        log
+        ;;
+    *)
+        echo "用法: $0 {start|stop|restart|status|log}"
+        exit 1
+        ;;
+esac
