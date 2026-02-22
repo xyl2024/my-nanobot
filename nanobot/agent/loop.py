@@ -172,6 +172,10 @@ class AgentLoop:
         final_content = None
         tools_used: list[str] = []
 
+        # 用于累积进度消息，每5次发送一次
+        pending_progress: list[str] = []
+        PROGRESS_INTERVAL = 5
+
         while iteration < self.max_iterations:
             iteration += 1
 
@@ -239,10 +243,15 @@ class AgentLoop:
                         messages, tool_call.id, tool_call.name, result
                     )
 
-                # 4. 迭代结束，整合成一条消息发送
+                # 4. 迭代结束，累积进度消息
+                pending_progress.extend(iteration_messages)
                 logger.info("Agent iteration {} completed", iteration)
-                if on_progress:
-                    await on_progress("\n\n".join(iteration_messages))
+
+                # 每5次或最后一次迭代发送累积的消息
+                if iteration % PROGRESS_INTERVAL == 0 or iteration == self.max_iterations:
+                    if on_progress:
+                        await on_progress("\n\n".join(pending_progress))
+                    pending_progress = []  # 清空累积的消息
             else:
                 # 无工具调用，直接返回最终响应（由调用方发送）
                 final_content = self._strip_think(response.content)
@@ -250,6 +259,10 @@ class AgentLoop:
                 if iteration > 1:
                     final_content = f"✅最终迭代轮次: {iteration}\n\n{final_content}"
                 break
+
+        # 循环结束后，发送剩余的累积进度消息（如果有）
+        if pending_progress and on_progress:
+            await on_progress("\n\n".join(pending_progress))
 
         return final_content, tools_used
 
