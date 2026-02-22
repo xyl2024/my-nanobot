@@ -23,6 +23,7 @@ from nanobot.agent.tools.web import WebFetchTool, WebSearchTool
 from nanobot.bus.events import InboundMessage, OutboundMessage
 from nanobot.bus.queue import MessageBus
 from nanobot.providers.base import LLMProvider
+from nanobot.providers.minimax_usage import query_minimax_usage
 from nanobot.session.manager import Session, SessionManager
 
 if TYPE_CHECKING:
@@ -58,6 +59,8 @@ class AgentLoop:
         restrict_to_workspace: bool = False,
         session_manager: SessionManager | None = None,
         mcp_servers: dict | None = None,
+        provider_name: str | None = None,
+        provider_api_key: str | None = None,
     ):
         from nanobot.config.schema import ExecToolConfig
         self.bus = bus
@@ -94,7 +97,18 @@ class AgentLoop:
         self._mcp_connected = False
         self._mcp_connecting = False
         self._consolidating: set[str] = set()  # Session keys with consolidation in progress
+        self.provider_name = provider_name
+        self.provider_api_key = provider_api_key
         self._register_default_tools()
+
+    async def _append_minimax_usage(self, content: str) -> str:
+        """Append MiniMax usage info to content if applicable."""
+        if self.provider_name != "minimax" or not self.provider_api_key:
+            return content
+        usage = await query_minimax_usage(self.provider_api_key)
+        if usage:
+            return content + usage
+        return content
 
     def _register_default_tools(self) -> None:
         """Register the default set of tools."""
@@ -330,11 +344,11 @@ class AgentLoop:
                 current_message=msg.content, channel=channel, chat_id=chat_id,
             )
             final_content, _ = await self._run_agent_loop(messages)
+            final_content = await self._append_minimax_usage(final_content or "Background task completed.")
             session.add_message("user", f"[System: {msg.sender_id}] {msg.content}")
-            session.add_message("assistant", final_content or "Background task completed.")
+            session.add_message("assistant", final_content)
             self.sessions.save(session)
-            return OutboundMessage(channel=channel, chat_id=chat_id,
-                                  content=final_content or "Background task completed.")
+            return OutboundMessage(channel=channel, chat_id=chat_id, content=final_content)
 
         preview = msg.content[:80] + "..." if len(msg.content) > 80 else msg.content
         logger.info("Processing message from {}:{}: {}", msg.channel, msg.sender_id, preview)
@@ -395,6 +409,8 @@ class AgentLoop:
 
         if final_content is None:
             final_content = "I've completed processing but have no response to give."
+
+        final_content = await self._append_minimax_usage(final_content)
 
         preview = final_content[:120] + "..." if len(final_content) > 120 else final_content
         logger.info("Response to {}:{}: {}", msg.channel, msg.sender_id, preview)

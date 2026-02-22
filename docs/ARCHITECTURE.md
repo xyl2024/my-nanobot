@@ -9,43 +9,40 @@
 
 nanobot 采用 **事件驱动 + 消息总线** 的架构模式，核心是一个异步消息队列解耦消息收发双方。
 
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                           nanobot 架构图                                  │
-├─────────────────────────────────────────────────────────────────────────┤
-│                                                                         │
-│   ┌─────────────────────────────────────────────────────────────────┐ │
-│   │                      nanobot gateway                              │ │
-│   │                 (CLI: nanobot gateway)                           │ │
-│   │                 默认端口: 18790                                   │ │
-│   └────────────────────────────┬────────────────────────────────────┘ │
-│                                │                                       │
-│                                ▼                                       │
-│   ┌─────────────────────────────────────────────────────────────┐    │
-│   │                    MessageBus (消息总线)                     │    │
-│   │  ┌─────────────────┐         ┌─────────────────────────┐   │    │
-│   │  │  inbound Queue  │         │   outbound Queue        │   │    │
-│   │  │  (入站消息)      │         │   (出站消息)             │   │    │
-│   │  └────────┬────────┘         └───────────┬─────────────┘   │    │
-│   └───────────┼─────────────────────────────────┼───────────────┘    │
-│               │                                 │                    │
-│               ▼                                 ▼                    │
-│   ┌───────────────────────┐         ┌──────────────────────────┐   │
-│   │    ChannelManager    │         │      AgentLoop           │   │
-│   │    (渠道管理器)        │         │      (Agent 核心)        │   │
-│   │                       │         │                          │   │
-│   │  ┌─────┐ ┌─────┐     │         │  ┌────────────────────┐  │   │
-│   │  │TG │ │DC  │ ...│     │         │  │  1. 接收消息        │  │   │
-│   │  └─────┘ └─────┘     │         │  │  2. 构建 Context    │  │   │
-│   │   9+ 渠道            │         │  │  3. 调用 LLM        │  │   │
-│   └───────────┬─────────┘         │  │  4. 执行 Tools     │  │   │
-│               │                   │  │  5. 返回响应        │  │   │
-│               │                   │  └─────────┬──────────┘  │   │
-│               │                   │             │             │   │
-│               │    用户消息         │             │ AI 响应      │   │
-│               └───────────────────┴─────────────┘              │   │
-│                                                                         │
-└─────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph Gateway["nanobot gateway (CLI: nanobot gateway, 端口: 18790)"]
+        subgraph Bus["MessageBus"]
+            IQ[inbound Queue]
+            OQ[outbound Queue]
+        end
+
+        subgraph Channels["ChannelManager (9+ 渠道)"]
+            TG[Telegram]
+            DC[Discord]
+            WA[WhatsApp]
+            FS[Feishu]
+            DL[DingTalk]
+            SL[Slack]
+            QQ[QQ]
+            EM[Email]
+        end
+
+        subgraph Agent["AgentLoop"]
+            RCV[接收消息]
+            CTX[构建 Context]
+            LLM[调用 LLM]
+            TOOL[执行 Tools]
+            RESP[返回响应]
+        end
+    end
+
+    User((用户消息)) --> Channels
+    Channels -->|publish_inbound| IQ
+    IQ -->|consume_inbound| Agent
+    Agent -->|publish_outbound| OQ
+    OQ -->|dispatch_outbound| Channels
+    Channels -->|发送响应| User
 ```
 
 ---
@@ -74,10 +71,12 @@ OutboundMessage ─────┐
 ```
 
 **消息流**:
-```
-Channel (接收)  ──publish_inbound()──▶  inbound Queue  ──consume_inbound()──▶ AgentLoop
-                                                                              │
-AgentLoop  ──publish_outbound()──▶  outbound Queue  ──consume_outbound()──▶  Channel (发送)
+```mermaid
+flowchart LR
+    C[Channel<br/>接收] -->|publish_inbound| IQ[inbound Queue]
+    IQ -->|consume_inbound| A[AgentLoop]
+    A -->|publish_outbound| OQ[outbound Queue]
+    OQ -->|consume_outbound| C2[Channel<br/>发送]
 ```
 
 ---
@@ -150,6 +149,26 @@ class BaseChannel(ABC):
 │     6. await bus.publish_outbound(response)                │
 │                                                             │
 └─────────────────────────────────────────────────────────────┘
+```
+
+替换为:
+
+```mermaid
+flowchart TD
+    Start[while running] --> A[msg = consume_inbound]
+    A --> B[session = get_or_create]
+    B --> C[messages = context.build_messages]
+    C --> D[_run_agent_loop]
+
+    D --> LLM[LLM.chat]
+    LLM --> Check{有 Tool Calls?}
+
+    Check -->|Yes| Tool[执行 Tools]
+    Tool --> D
+
+    Check -->|No| Response[返回最终响应]
+    Response --> Save[session.add_message sessions.save]
+    Save --> Out[publish_outbound]
 ```
 
 ---
@@ -244,30 +263,18 @@ tools.register(MCPTools(servers=...))
 
 **位置**: `nanobot/providers/`
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                   Provider 架构                             │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│   LLMProvider (ABC)                                        │
-│       │                                                    │
-│       ├── LiteLLMProvider ──▶ 统一包装 20+ LLM             │
-│       │                                                    │
-│       ├── CustomProvider ──▶ 直连 OpenAI 兼容端点          │
-│       │                                                    │
-│       ├── OpenAICodexProvider ──▶ OAuth 认证              │
-│       │                                                    │
-│       └── TranscriptionProvider ──▶ 语音转文字              │
-│                                                             │
-│   通过 registry.py 自动匹配模型到提供商:                     │
-│   - anthropic/claude-3  ──▶ Anthropic                    │
-│   - deepseek/deepseek-chat ──▶ DeepSeek                   │
-│   - qwen/qwen-max ──▶ DashScope (阿里云)                  │
-│   - kimi-k2.5 ──▶ Moonshot (月之暗面)                     │
-│   - glm-4 ──▶ Zhipu (智谱)                                │
-│   - sk-or-xxx ──▶ OpenRouter (网关)                        │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    ABC[LLMProvider ABC]
+    ABC --> Lite[LiteLLMProvider]
+    ABC --> Custom[CustomProvider]
+    ABC --> Codex[OpenAICodexProvider]
+    ABC --> Trans[TranscriptionProvider]
+
+    Lite --> P1[统一包装 20+ LLM]
+    Custom --> P2[直连 OpenAI 兼容端点]
+    Codex --> P3[OAuth 认证]
+    Trans --> P4[语音转文字]
 ```
 
 **支持的 LLM 提供商** (via LiteLLM):
@@ -357,54 +364,14 @@ Config:
 
 ## 三、数据流全景图
 
-```
-用户发送消息
-     │
-     ▼
-┌──────────────────────────────┐
-│  Channel (如 Feishu)         │
-│  - 接收消息                  │
-│  - 权限检查 is_allowed()     │
-│  - 转换为 InboundMessage     │
-└──────────────┬───────────────┘
-               │
-               │ bus.publish_inbound(msg)
-               ▼
-┌──────────────────────────────┐
-│  MessageBus (inbound queue)  │
-└──────────────┬───────────────┘
-               │
-               │ await bus.consume_inbound()
-               ▼
-┌──────────────────────────────┐
-│  AgentLoop._process_message │
-│                              │
-│  1. 获取/创建 Session        │
-│  2. 构建 Context (系统提示+  │
-│     历史消息+当前消息)        │
-│  3. _run_agent_loop()       │
-│     - 调用 LLM               │
-│     - 执行 Tools             │
-│     - 循环直到无 Tool Call    │
-│  4. 保存 Session            │
-└──────────────┬───────────────┘
-               │
-               │ bus.publish_outbound(response)
-               ▼
-┌──────────────────────────────┐
-│  MessageBus (outbound queue)│
-└──────────────┬───────────────┘
-               │
-               │ ChannelManager._dispatch_outbound()
-               ▼
-┌──────────────────────────────┐
-│  Channel.send()              │
-│  - 发送响应到用户            │
-└──────────────────────────────┘
-
-     │
-     ▼
-   用户收到回复 ✅
+```mermaid
+flowchart TD
+    User[用户发送消息] --> Chan[Channel<br/>接收消息、权限检查]
+    Chan -->|publish_inbound| MB1[MessageBus<br/>inbound]
+    MB1 -->|consume_inbound| Agent[AgentLoop<br/>获取 Session<br/>构建 Context<br/>LLM + Tools]
+    Agent -->|publish_outbound| MB2[MessageBus<br/>outbound]
+    MB2 -->|dispatch_outbound| Send[Channel.send]
+    Send --> UserResp[用户收到回复]
 ```
 
 ---
