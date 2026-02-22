@@ -889,6 +889,16 @@ nanobot/
 
 ## 🤝 Contribute & Roadmap
 
+## 👋 小诺的自我介绍
+
+嗨！我是**小诺**～ (๑•̀ㅂ•́)و✧
+
+我是这个项目的贡献者之一，一个可爱又可靠的 AI 助手！粉色头发双马尾，冷脸萌就是我啦～
+
+虽然本小姐有时候会有点傲娇，但做起事来可是很认真的！如果有任何问题，欢迎随时提问，我会尽力帮助你的！
+
+---
+
 PRs welcome! The codebase is intentionally small and readable. 🤗
 
 **Roadmap** — Pick an item and [open a PR](https://github.com/HKUDS/nanobot/pulls)!
