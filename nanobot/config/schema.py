@@ -42,8 +42,6 @@ class FeishuConfig(Base):
     encrypt_key: str = ""  # Encrypt Key for event subscription (optional)
     verification_token: str = ""  # Verification Token for event subscription (optional)
     allow_from: list[str] = Field(default_factory=list)  # Allowed user open_ids
-    reaction_on_receive: bool = True  # Add reaction emoji when receiving message
-    reaction_emoji: str = "Get"  # Emoji type: THUMBSUP, OK, EYES, HEART, DONE, OnIt
 
 
 class DingTalkConfig(Base):
@@ -269,8 +267,7 @@ class GatewayConfig(Base):
 class WebSearchConfig(Base):
     """Web search tool configuration."""
 
-    api_key: str = ""  # Deprecated: use tavily_api_key instead
-    tavily_api_key: str = ""  # Tavily API key
+    api_key: str = ""  # Brave Search API key
     max_results: int = 5
 
 

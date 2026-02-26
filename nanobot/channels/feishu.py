@@ -648,14 +648,11 @@ class FeishuChannel(BaseChannel):
                         )
 
             if msg.content and msg.content.strip():
-                preview = msg.content[:80] + "..." if len(msg.content) > 80 else msg.content
-                logger.info("Feishu sending message to {}: {}", msg.chat_id, preview)
                 card = {"config": {"wide_screen_mode": True}, "elements": self._build_card_elements(msg.content)}
                 await loop.run_in_executor(
                     None, self._send_message_sync,
                     receive_id_type, msg.chat_id, "interactive", json.dumps(card, ensure_ascii=False),
                 )
-                logger.info("Feishu message sent to {}", msg.chat_id)
 
         except Exception as e:
             logger.error("Error sending Feishu message: {}", e)
@@ -694,9 +691,8 @@ class FeishuChannel(BaseChannel):
             chat_type = message.chat_type
             msg_type = message.message_type
 
-            # Add reaction (configurable)
-            if self.config.reaction_on_receive:
-                await self._add_reaction(message_id, self.config.reaction_emoji)
+            # Add reaction
+            await self._add_reaction(message_id, "THUMBSUP")
 
             # Parse content
             content_parts = []
@@ -745,9 +741,7 @@ class FeishuChannel(BaseChannel):
             if not content and not media_paths:
                 return
 
-            # Log and forward to message bus
-            preview = content[:80] + "..." if len(content) > 80 else content
-            logger.info("Feishu received message from {}: {}", sender_id, preview)
+            # Forward to message bus
             reply_to = chat_id if chat_type == "group" else sender_id
             await self._handle_message(
                 sender_id=sender_id,

@@ -1,350 +1,371 @@
 ---
 name: skill-creator
-description: 创建高效技能的指南。当用户想要创建新技能（或更新现有技能）来扩展 AI Agent 的能力时，应使用此技能。
+description: Create or update AgentSkills. Use when designing, structuring, or packaging skills with scripts, references, and assets.
 ---
 
 # Skill Creator
 
-此技能提供创建高效技能的指南。
+This skill provides guidance for creating effective skills.
 
-## 关于 Skills
+## About Skills
 
-Skills（技能）是模块化、自包含的包，通过提供专业知识、工作流程和工具来扩展 AI Agent 的能力。可以把它们想象成特定领域的"入职指南"——它们将 AI Agent 从通用智能转变为具备专业流程知识的专用助手，而这些知识是任何模型都无法完全掌握的。
+Skills are modular, self-contained packages that extend the agent's capabilities by providing
+specialized knowledge, workflows, and tools. Think of them as "onboarding guides" for specific
+domains or tasks—they transform the agent from a general-purpose agent into a specialized agent
+equipped with procedural knowledge that no model can fully possess.
 
-### Skills 能提供什么
+### What Skills Provide
 
-1. **专业化工作流** - 特定领域的多步骤流程
-2. **工具集成** - 处理特定文件格式或 API 的指令
-3. **领域专业知识** - 公司特定的知识、数据结构和业务逻辑
-4. **捆绑资源** - 复杂重复任务所需的脚本、参考资料和资产
+1. Specialized workflows - Multi-step procedures for specific domains
+2. Tool integrations - Instructions for working with specific file formats or APIs
+3. Domain expertise - Company-specific knowledge, schemas, business logic
+4. Bundled resources - Scripts, references, and assets for complex and repetitive tasks
 
-## 核心原则
+## Core Principles
 
-### 简洁为王
+### Concise is Key
 
-上下文窗口是宝贵的公共资源。Skills 与其他内容共享上下文窗口：系统提示词、对话历史、其他 Skills 的元数据，以及实际的用户请求。
+The context window is a public good. Skills share the context window with everything else the agent needs: system prompt, conversation history, other Skills' metadata, and the actual user request.
 
-**默认假设：AI Agent 已经非常聪明。** 只添加 AI Agent 原本没有的上下文。对每条信息都问一下："Agent 真的需要这个解释吗？"以及"这段话值得消耗的 token 吗？"
+**Default assumption: the agent is already very smart.** Only add context the agent doesn't already have. Challenge each piece of information: "Does the agent really need this explanation?" and "Does this paragraph justify its token cost?"
 
-优先选择简洁的示例，而不是冗长的解释。
+Prefer concise examples over verbose explanations.
 
-### 设定适当的自由度
+### Set Appropriate Degrees of Freedom
 
-根据任务的脆弱程度和变化性来匹配具体的规范程度：
+Match the level of specificity to the task's fragility and variability:
 
-**高自由度（基于文本的指令）**：当多种方法都有效、决策取决于上下文、或用启发式方法指导方案时使用。
+**High freedom (text-based instructions)**: Use when multiple approaches are valid, decisions depend on context, or heuristics guide the approach.
 
-**中自由度（带参数的伪代码或脚本）**：当存在首选模式、可以接受一些变化、或配置影响行为时使用。
+**Medium freedom (pseudocode or scripts with parameters)**: Use when a preferred pattern exists, some variation is acceptable, or configuration affects behavior.
 
-**低自由度（具体脚本，参数很少）**：当操作容易出错、必须保持一致性、或必须遵循特定顺序时使用。
+**Low freedom (specific scripts, few parameters)**: Use when operations are fragile and error-prone, consistency is critical, or a specific sequence must be followed.
 
-可以把 AI Agent 想象成在探索一条路径：悬崖边的窄桥需要具体的护栏（低自由度），而开阔的田野允许多条路线（高自由度）。
+Think of the agent as exploring a path: a narrow bridge with cliffs needs specific guardrails (low freedom), while an open field allows many routes (high freedom).
 
-### Skill 的组成
+### Anatomy of a Skill
 
-每个 Skill 都由一个必需的 SKILL.md 文件和可选的捆绑资源组成：
+Every skill consists of a required SKILL.md file and optional bundled resources:
 
 ```
 skill-name/
-├── SKILL.md (必需)
-│   ├── YAML frontmatter 元数据 (必需)
-│   │   ├── name: (必需)
-│   │   ├── description: (必需)
-│   │   └── compatibility: (可选，很少需要)
-│   └── Markdown 指南 (必需)
-└── 捆绑资源 (可选)
-    ├── scripts/          - 可执行代码 (Python/Bash 等)
-    ├── references/       - 需要时加载到上下文的参考资料
-    └── assets/           - 用于输出的文件 (模板、图标、字体等)
+├── SKILL.md (required)
+│   ├── YAML frontmatter metadata (required)
+│   │   ├── name: (required)
+│   │   └── description: (required)
+│   └── Markdown instructions (required)
+└── Bundled Resources (optional)
+    ├── scripts/          - Executable code (Python/Bash/etc.)
+    ├── references/       - Documentation intended to be loaded into context as needed
+    └── assets/           - Files used in output (templates, icons, fonts, etc.)
 ```
 
-#### SKILL.md (必需)
+#### SKILL.md (required)
 
-每个 SKILL.md 由以下部分组成：
+Every SKILL.md consists of:
 
-- **Frontmatter** (YAML)：包含 `name` 和 `description` 字段（必需），以及可选字段如 `license`、`metadata` 和 `compatibility`。AI Agent 只读取 `name` 和 `description` 来决定何时触发技能，所以要清楚、全面地描述技能是什么以及何时使用。`compatibility` 字段用于说明环境要求（目标产品、系统包等），但大多数技能不需要它。
-- **Body** (Markdown)：使用技能的指南和说明。只在技能触发后加载（如果需要）。
+- **Frontmatter** (YAML): Contains `name` and `description` fields. These are the only fields that the agent reads to determine when the skill gets used, thus it is very important to be clear and comprehensive in describing what the skill is, and when it should be used.
+- **Body** (Markdown): Instructions and guidance for using the skill. Only loaded AFTER the skill triggers (if at all).
 
-#### 捆绑资源 (可选)
+#### Bundled Resources (optional)
 
-##### 脚本 (`scripts/`)
+##### Scripts (`scripts/`)
 
-用于需要确定性可靠性的任务的 executable 代码 (Python/Bash 等)，或者那些会被反复重写的代码。
+Executable code (Python/Bash/etc.) for tasks that require deterministic reliability or are repeatedly rewritten.
 
-- **何时包含**：当同样的代码被反复重写，或者需要确定性可靠性时
-- **示例**：PDF 旋转任务的 `scripts/rotate_pdf.py`
-- **优点**：节省 token、确定性、可能无需加载到上下文即可执行
-- **注意**：脚本可能仍需要 AI Agent 读取以便修补或进行环境特定调整
+- **When to include**: When the same code is being rewritten repeatedly or deterministic reliability is needed
+- **Example**: `scripts/rotate_pdf.py` for PDF rotation tasks
+- **Benefits**: Token efficient, deterministic, may be executed without loading into context
+- **Note**: Scripts may still need to be read by the agent for patching or environment-specific adjustments
 
-##### 参考资料 (`references/`)
+##### References (`references/`)
 
-旨在需要时加载到上下文中以指导 AI Agent 流程和思考的文档和参考资料。
+Documentation and reference material intended to be loaded as needed into context to inform the agent's process and thinking.
 
-- **何时包含**：当 AI Agent 工作中应该参考的文档时
-- **示例**：财务数据结构的 `references/finance.md`、公司 NDA 模板的 `references/mnda.md`、公司政策的 `references/policies.md`、API 规范的 `references/api_docs.md`
-- **用例**：数据库 schema、API 文档、领域知识、公司政策、详细的工作流程指南
-- **优点**：保持 SKILL.md 精简，只在 AI Agent 判断需要时加载
-- **最佳实践**：如果文件很大（>10k 词），在 SKILL.md 中包含 grep 搜索模式
-- **避免重复**：信息应该存在于 SKILL.md 或参考资料中，而不是两者都有。优先将详细信息放在参考资料中，除非它确实是技能的核心——这样可以保持 SKILL.md 精简，同时让信息可被发现，而不会霸占上下文窗口。只在 SKILL.md 中保留必要的流程指南和工作流程指导；将详细的参考资料、schema 和示例移到参考资料文件中。
+- **When to include**: For documentation that the agent should reference while working
+- **Examples**: `references/finance.md` for financial schemas, `references/mnda.md` for company NDA template, `references/policies.md` for company policies, `references/api_docs.md` for API specifications
+- **Use cases**: Database schemas, API documentation, domain knowledge, company policies, detailed workflow guides
+- **Benefits**: Keeps SKILL.md lean, loaded only when the agent determines it's needed
+- **Best practice**: If files are large (>10k words), include grep search patterns in SKILL.md
+- **Avoid duplication**: Information should live in either SKILL.md or references files, not both. Prefer references files for detailed information unless it's truly core to the skill—this keeps SKILL.md lean while making information discoverable without hogging the context window. Keep only essential procedural instructions and workflow guidance in SKILL.md; move detailed reference material, schemas, and examples to references files.
 
-##### 资产 (`assets/`)
+##### Assets (`assets/`)
 
-不打算加载到上下文中，而是用于 AI Agent 产出物中的文件。
+Files not intended to be loaded into context, but rather used within the output the agent produces.
 
-- **何时包含**：当技能需要用于最终产出的文件时
-- **示例**：品牌资产的 `assets/logo.png`、PowerPoint 模板的 `assets/slides.pptx`、HTML/React 样板文件的 `assets/frontend-template/`、字体的 `assets/font.ttf`
-- **用例**：模板、图片、图标、样板代码、字体、会被复制或修改的示例文档
-- **优点**：将产出资源与文档分开，让 AI Agent 使用文件时无需加载到上下文
+- **When to include**: When the skill needs files that will be used in the final output
+- **Examples**: `assets/logo.png` for brand assets, `assets/slides.pptx` for PowerPoint templates, `assets/frontend-template/` for HTML/React boilerplate, `assets/font.ttf` for typography
+- **Use cases**: Templates, images, icons, boilerplate code, fonts, sample documents that get copied or modified
+- **Benefits**: Separates output resources from documentation, enables the agent to use files without loading them into context
 
-### 什么不应该包含在 Skill 中
+#### What to Not Include in a Skill
 
-Skill 应该只包含直接支持其功能的必要文件。不要创建额外的文档或辅助文件，包括：
+A skill should only contain essential files that directly support its functionality. Do NOT create extraneous documentation or auxiliary files, including:
 
 - README.md
 - INSTALLATION_GUIDE.md
 - QUICK_REFERENCE.md
 - CHANGELOG.md
-- 等等
+- etc.
 
-技能应该只包含 AI Agent 完成手头任务所需的信息。它不应包含关于创建过程的辅助上下文、设置和测试程序、面向用户的文档等。创建额外的文档文件只会增加混乱和干扰。
+The skill should only contain the information needed for an AI agent to do the job at hand. It should not contain auxiliary context about the process that went into creating it, setup and testing procedures, user-facing documentation, etc. Creating additional documentation files just adds clutter and confusion.
 
-### 渐进式披露设计原则
+### Progressive Disclosure Design Principle
 
-技能使用三层加载系统来高效管理上下文：
+Skills use a three-level loading system to manage context efficiently:
 
-1. **元数据 (name + description)** - 始终在上下文中（约 100 词）
-2. **SKILL.md 主体** - 技能触发时（<5k 词）
-3. **捆绑资源** - 按需加载（无限，因为脚本可以无需加载到上下文窗口即可执行）
+1. **Metadata (name + description)** - Always in context (~100 words)
+2. **SKILL.md body** - When skill triggers (<5k words)
+3. **Bundled resources** - As needed by the agent (Unlimited because scripts can be executed without reading into context window)
 
-#### 渐进式披露模式
+#### Progressive Disclosure Patterns
 
-保持 SKILL.md 主体简洁，控制在 500 行以内以最小化上下文膨胀。当内容接近此限制时，拆分成单独的文件。当拆分内容到其他文件时，非常重要的是从 SKILL.md 引用它们并清楚地描述何时读取它们，以确保技能的读者知道它们的存在以及何时使用它们。
+Keep SKILL.md body to the essentials and under 500 lines to minimize context bloat. Split content into separate files when approaching this limit. When splitting out content into other files, it is very important to reference them from SKILL.md and describe clearly when to read them, to ensure the reader of the skill knows they exist and when to use them.
 
-**关键原则：** 当一个技能支持多种变化、框架或选项时，只在 SKILL.md 中保留核心工作流程和选择指南。将特定变体的详细信息（模式、示例、配置）移到单独的参考资料文件中。
+**Key principle:** When a skill supports multiple variations, frameworks, or options, keep only the core workflow and selection guidance in SKILL.md. Move variant-specific details (patterns, examples, configuration) into separate reference files.
 
-**模式 1：高级指南 + 参考资料**
+**Pattern 1: High-level guide with references**
 
 ```markdown
-# PDF 处理
+# PDF Processing
 
-## 快速开始
+## Quick start
 
-使用 pdfplumber 提取文本：
-[代码示例]
+Extract text with pdfplumber:
+[code example]
 
-## 高级功能
+## Advanced features
 
-- **表单填写**：完整指南见 [FORMS.md](FORMS.md)
-- **API 参考**：所有方法见 [REFERENCE.md](REFERENCE.md)
-- **示例**：常见模式见 [EXAMPLES.md](EXAMPLES.md)
+- **Form filling**: See [FORMS.md](FORMS.md) for complete guide
+- **API reference**: See [REFERENCE.md](REFERENCE.md) for all methods
+- **Examples**: See [EXAMPLES.md](EXAMPLES.md) for common patterns
 ```
 
-AI Agent 只在需要时加载 FORMS.md、REFERENCE.md 或 EXAMPLES.md。
+the agent loads FORMS.md, REFERENCE.md, or EXAMPLES.md only when needed.
 
-**模式 2：按领域组织**
+**Pattern 2: Domain-specific organization**
 
-对于包含多个领域的技能，按领域组织内容以避免加载无关的上下文：
+For Skills with multiple domains, organize content by domain to avoid loading irrelevant context:
 
 ```
 bigquery-skill/
-├── SKILL.md (概述和导航)
+├── SKILL.md (overview and navigation)
 └── reference/
-    ├── finance.md (收入、计费指标)
-    ├── sales.md (商机、管道)
-    ├── product.md (API 用法、功能)
-    └── marketing.md (营销活动、归因)
+    ├── finance.md (revenue, billing metrics)
+    ├── sales.md (opportunities, pipeline)
+    ├── product.md (API usage, features)
+    └── marketing.md (campaigns, attribution)
 ```
 
-当用户询问销售指标时，AI Agent 只读取 sales.md。
+When a user asks about sales metrics, the agent only reads sales.md.
 
-同样，对于支持多种框架或变体的技能，按变体组织：
+Similarly, for skills supporting multiple frameworks or variants, organize by variant:
 
 ```
 cloud-deploy/
-├── SKILL.md (工作流程 + 提供商选择)
+├── SKILL.md (workflow + provider selection)
 └── references/
-    ├── aws.md (AWS 部署模式)
-    ├── gcp.md (GCP 部署模式)
-    └── azure.md (Azure 部署模式)
+    ├── aws.md (AWS deployment patterns)
+    ├── gcp.md (GCP deployment patterns)
+    └── azure.md (Azure deployment patterns)
 ```
 
-当用户选择 AWS 时，AI Agent 只读取 aws.md。
+When the user chooses AWS, the agent only reads aws.md.
 
-**模式 3：条件细节**
+**Pattern 3: Conditional details**
 
-显示基本内容，链接到高级内容：
+Show basic content, link to advanced content:
 
 ```markdown
-# DOCX 处理
+# DOCX Processing
 
-## 创建文档
+## Creating documents
 
-新文档使用 docx-js。详见 [DOCX-JS.md](DOCX-JS.md)。
+Use docx-js for new documents. See [DOCX-JS.md](DOCX-JS.md).
 
-## 编辑文档
+## Editing documents
 
-对于简单编辑，直接修改 XML。
+For simple edits, modify the XML directly.
 
-**对于修订跟踪**：详见 [REDLINING.md](REDLINING.md)
-**对于 OOXML 详情**：详见 [OOXML.md](OOXML.md)
+**For tracked changes**: See [REDLINING.md](REDLINING.md)
+**For OOXML details**: See [OOXML.md](OOXML.md)
 ```
 
-AI Agent 只在用户需要这些功能时读取 REDLINING.md 或 OOXML.md。
+the agent reads REDLINING.md or OOXML.md only when the user needs those features.
 
-**重要指南：**
+**Important guidelines:**
 
-- **避免深层嵌套的引用** - 保持引用离 SKILL.md 一层。所有引用文件都应该直接从 SKILL.md 链接。
-- **为较长的引用文件添加结构** - 对于超过 100 行的文件，在顶部添加目录，这样 AI Agent 预览时可以一目了然。
+- **Avoid deeply nested references** - Keep references one level deep from SKILL.md. All reference files should link directly from SKILL.md.
+- **Structure longer reference files** - For files longer than 100 lines, include a table of contents at the top so the agent can see the full scope when previewing.
 
-## 技能创建流程
+## Skill Creation Process
 
-创建技能涉及以下步骤：
+Skill creation involves these steps:
 
-1. 通过具体示例理解技能
-2. 规划可复用的技能内容（脚本、参考资料、资产）
-3. 初始化技能（运行 init_skill.py）
-4. 编辑技能（实现资源并编写 SKILL.md）
-5. 打包技能（运行 package_skill.py）
-6. 基于实际使用迭代
+1. Understand the skill with concrete examples
+2. Plan reusable skill contents (scripts, references, assets)
+3. Initialize the skill (run init_skill.py)
+4. Edit the skill (implement resources and write SKILL.md)
+5. Package the skill (run package_skill.py)
+6. Iterate based on real usage
 
-按顺序执行这些步骤，只有在有明确理由不适用的地方才跳过。
+Follow these steps in order, skipping only if there is a clear reason why they are not applicable.
 
-### 步骤 1：通过具体示例理解技能
+### Skill Naming
 
-只有在技能的使用模式已经清楚理解时才跳过此步骤。即使在使用现有技能时，它仍然很有价值。
+- Use lowercase letters, digits, and hyphens only; normalize user-provided titles to hyphen-case (e.g., "Plan Mode" -> `plan-mode`).
+- When generating names, generate a name under 64 characters (letters, digits, hyphens).
+- Prefer short, verb-led phrases that describe the action.
+- Namespace by tool when it improves clarity or triggering (e.g., `gh-address-comments`, `linear-address-issue`).
+- Name the skill folder exactly after the skill name.
 
-要创建一个有效的技能，需要清楚了解技能将被使用的具体示例。这种理解可以来自直接的用户示例或经过用户反馈验证的生成示例。
+### Step 1: Understanding the Skill with Concrete Examples
 
-例如，构建图像编辑技能时，相关问题包括：
+Skip this step only when the skill's usage patterns are already clearly understood. It remains valuable even when working with an existing skill.
 
-- "图像编辑技能应该支持什么功能？编辑、旋转，还有其他的吗？"
-- "你能举几个这个技能使用方式的例子吗？"
-- "我可以想象用户会请求'去除这张照片的红眼'或'旋转这张照片'。你想象这个技能还有其他用法吗？"
-- "用户说什么应该触发这个技能？"
+To create an effective skill, clearly understand concrete examples of how the skill will be used. This understanding can come from either direct user examples or generated examples that are validated with user feedback.
 
-为避免让用户不知所措，避免在一条消息中问太多问题。从最重要的问题开始，根据需要跟进以提高有效性。
+For example, when building an image-editor skill, relevant questions include:
 
-当对技能应该支持的功能有了清晰的感识时，完成此步骤。
+- "What functionality should the image-editor skill support? Editing, rotating, anything else?"
+- "Can you give some examples of how this skill would be used?"
+- "I can imagine users asking for things like 'Remove the red-eye from this image' or 'Rotate this image'. Are there other ways you imagine this skill being used?"
+- "What would a user say that should trigger this skill?"
 
-### 步骤 2：规划可复用的技能内容
+To avoid overwhelming users, avoid asking too many questions in a single message. Start with the most important questions and follow up as needed for better effectiveness.
 
-要将具体示例转化为有效的技能，通过以下方式分析每个示例：
+Conclude this step when there is a clear sense of the functionality the skill should support.
 
-1. 考虑如何从零开始执行这个示例
-2. 识别当这些工作流程重复执行时，哪些脚本、参考资料和资产会有帮助
+### Step 2: Planning the Reusable Skill Contents
 
-示例：构建处理"帮我旋转这个 PDF"等查询的 `pdf-editor` 技能时，分析表明：
-1. 旋转 PDF 需要每次重写同样的代码
-2. 一个存储在技能中的 `scripts/rotate_pdf.py` 脚本会很有帮助
+To turn concrete examples into an effective skill, analyze each example by:
 
-示例：设计用于"帮我做一个待办事项应用"或"帮我做一个计步仪表盘"的 `frontend-webapp-builder` 技能时，分析表明：
-1. 编写前端 Web 应用每次都需要相同的样板 HTML/React
-2. 一个包含样板 HTML/React 项目文件的 `assets/hello-world/` 模板会很有帮助
+1. Considering how to execute on the example from scratch
+2. Identifying what scripts, references, and assets would be helpful when executing these workflows repeatedly
 
-示例：构建处理"今天有多少用户登录了？"等查询的 `big-query` 技能时，分析表明：
-1. 查询 BigQuery 每次都需要重新发现表结构和关系
-2. 一个记录表结构的 `references/schema.md` 文件会很有帮助
+Example: When building a `pdf-editor` skill to handle queries like "Help me rotate this PDF," the analysis shows:
 
-要确定技能的内容，分析每个具体示例，创建要包含的可复用资源列表：脚本、参考资料和资产。
+1. Rotating a PDF requires re-writing the same code each time
+2. A `scripts/rotate_pdf.py` script would be helpful to store in the skill
 
-### 步骤 3：初始化技能
+Example: When designing a `frontend-webapp-builder` skill for queries like "Build me a todo app" or "Build me a dashboard to track my steps," the analysis shows:
 
-现在是时候实际创建技能了。
+1. Writing a frontend webapp requires the same boilerplate HTML/React each time
+2. An `assets/hello-world/` template containing the boilerplate HTML/React project files would be helpful to store in the skill
 
-只有当正在开发的技能已经存在，需要迭代或打包时，才跳过此步骤。在这种情况下，继续下一步。
+Example: When building a `big-query` skill to handle queries like "How many users have logged in today?" the analysis shows:
 
-从头开始创建新技能时，始终运行 `init_skill.py` 脚本。该脚本可以方便地生成一个新的技能目录模板，自动包含技能所需的一切，使技能创建过程更加高效和可靠。
+1. Querying BigQuery requires re-discovering the table schemas and relationships each time
+2. A `references/schema.md` file documenting the table schemas would be helpful to store in the skill
 
-用法：
+To establish the skill's contents, analyze each concrete example to create a list of the reusable resources to include: scripts, references, and assets.
+
+### Step 3: Initializing the Skill
+
+At this point, it is time to actually create the skill.
+
+Skip this step only if the skill being developed already exists, and iteration or packaging is needed. In this case, continue to the next step.
+
+When creating a new skill from scratch, always run the `init_skill.py` script. The script conveniently generates a new template skill directory that automatically includes everything a skill requires, making the skill creation process much more efficient and reliable.
+
+Usage:
 
 ```bash
-scripts/init_skill.py <skill-name> --path <output-directory>
+scripts/init_skill.py <skill-name> --path <output-directory> [--resources scripts,references,assets] [--examples]
 ```
 
-该脚本：
+Examples:
 
-- 在指定路径创建技能目录
-- 生成带有正确 frontmatter 和 TODO 占位符的 SKILL.md 模板
-- 创建示例资源目录：`scripts/`、`references/` 和 `assets/`
-- 在每个目录中添加可自定义或删除的示例文件
+```bash
+scripts/init_skill.py my-skill --path skills/public
+scripts/init_skill.py my-skill --path skills/public --resources scripts,references
+scripts/init_skill.py my-skill --path skills/public --resources scripts --examples
+```
 
-初始化后，根据需要自定义或删除生成的 SKILL.md 和示例文件。
+The script:
 
-### 步骤 4：编辑技能
+- Creates the skill directory at the specified path
+- Generates a SKILL.md template with proper frontmatter and TODO placeholders
+- Optionally creates resource directories based on `--resources`
+- Optionally adds example files when `--examples` is set
 
-编辑（新生成的或现有的）技能时，请记住这个技能是为另一个 AI Agent 实例使用的。包含对另一个 AI Agent 实例执行这些任务有益且不显而易见的信息。考虑什么样的流程知识、领域特定细节或可复用资产会帮助另一个 AI Agent 实例更有效地执行这些任务。
+After initialization, customize the SKILL.md and add resources as needed. If you used `--examples`, replace or delete placeholder files.
 
-#### 学习经过验证的设计模式
+### Step 4: Edit the Skill
 
-根据技能需求咨询这些有用的指南：
+When editing the (newly-generated or existing) skill, remember that the skill is being created for another instance of the agent to use. Include information that would be beneficial and non-obvious to the agent. Consider what procedural knowledge, domain-specific details, or reusable assets would help another the agent instance execute these tasks more effectively.
 
-- **多步骤流程**：参见 references/workflows.md 了解顺序工作流程和条件逻辑
-- **特定输出格式或质量标准**：参见 references/output-patterns.md 了解模板和示例模式
+#### Learn Proven Design Patterns
 
-这些文件包含有效技能设计的最佳实践。
+Consult these helpful guides based on your skill's needs:
 
-#### 从可复用技能内容开始
+- **Multi-step processes**: See references/workflows.md for sequential workflows and conditional logic
+- **Specific output formats or quality standards**: See references/output-patterns.md for template and example patterns
 
-要开始实现，从上面识别的可复用资源开始：`scripts/`、`references/` 和 `assets/` 文件。请注意此步骤可能需要用户输入。例如，实现 `brand-guidelines` 技能时，用户可能需要提供存储在 `assets/` 中的品牌资产或模板，或存储在 `references/` 中的文档。
+These files contain established best practices for effective skill design.
 
-添加的脚本必须通过实际运行来测试，以确保没有错误且输出符合预期。如果有很多类似的脚本，只需要测试代表性示例以确保对它们都能正常工作的信心，同时平衡完成时间。
+#### Start with Reusable Skill Contents
 
-删除不需要的示例文件和目录。初始化脚本在 `scripts/`、`references/` 和 `assets/` 中创建示例文件以展示结构，但大多数技能不需要所有这些。
+To begin implementation, start with the reusable resources identified above: `scripts/`, `references/`, and `assets/` files. Note that this step may require user input. For example, when implementing a `brand-guidelines` skill, the user may need to provide brand assets or templates to store in `assets/`, or documentation to store in `references/`.
 
-#### 更新 SKILL.md
+Added scripts must be tested by actually running them to ensure there are no bugs and that the output matches what is expected. If there are many similar scripts, only a representative sample needs to be tested to ensure confidence that they all work while balancing time to completion.
 
-**写作指南：** 始终使用祈使句/不定式形式。
+If you used `--examples`, delete any placeholder files that are not needed for the skill. Only create resource directories that are actually required.
+
+#### Update SKILL.md
+
+**Writing Guidelines:** Always use imperative/infinitive form.
 
 ##### Frontmatter
 
-编写带有 `name` 和 `description` 的 YAML frontmatter：
+Write the YAML frontmatter with `name` and `description`:
 
-- `name`：技能名称
-- `description`：这是技能的主要触发机制，帮助 AI Agent 理解何时使用技能。
-  - 同时包含技能的功能和具体的触发上下文/使用场景
-  - 将所有"何时使用"的信息放在这里——不要放在主体中。主体只在触发后加载，所以主体中的"何时使用此技能"部分对 AI Agent 没有帮助。
-  - 示例 docx 技能的描述："全面的文档创建、编辑和分析，支持修订跟踪、评论、格式保留和文本提取。在 AI Agent 需要处理专业文档（.docx 文件）时使用，包括：(1) 创建新文档，(2) 修改或编辑内容，(3) 处理修订跟踪，(4) 添加评论，或任何其他文档任务"
+- `name`: The skill name
+- `description`: This is the primary triggering mechanism for your skill, and helps the agent understand when to use the skill.
+  - Include both what the Skill does and specific triggers/contexts for when to use it.
+  - Include all "when to use" information here - Not in the body. The body is only loaded after triggering, so "When to Use This Skill" sections in the body are not helpful to the agent.
+  - Example description for a `docx` skill: "Comprehensive document creation, editing, and analysis with support for tracked changes, comments, formatting preservation, and text extraction. Use when the agent needs to work with professional documents (.docx files) for: (1) Creating new documents, (2) Modifying or editing content, (3) Working with tracked changes, (4) Adding comments, or any other document tasks"
 
-不要在 YAML frontmatter 中包含任何其他字段。
+Do not include any other fields in YAML frontmatter.
 
 ##### Body
 
-编写使用技能及其捆绑资源的指南。
+Write instructions for using the skill and its bundled resources.
 
-### 步骤 5：打包技能
+### Step 5: Packaging a Skill
 
-技能开发完成后，必须将其打包成可分发的 .skill 文件供用户共享。打包过程会自动验证技能以确保满足所有要求：
+Once development of the skill is complete, it must be packaged into a distributable .skill file that gets shared with the user. The packaging process automatically validates the skill first to ensure it meets all requirements:
 
 ```bash
 scripts/package_skill.py <path/to/skill-folder>
 ```
 
-指定可选的输出目录：
+Optional output directory specification:
 
 ```bash
 scripts/package_skill.py <path/to/skill-folder> ./dist
 ```
 
-打包脚本将：
+The packaging script will:
 
-1. **自动验证**技能，检查：
+1. **Validate** the skill automatically, checking:
 
-   - YAML frontmatter 格式和必需字段
-   - 技能命名约定和目录结构
-   - 描述的完整性和质量
-   - 文件组织和资源引用
+   - YAML frontmatter format and required fields
+   - Skill naming conventions and directory structure
+   - Description completeness and quality
+   - File organization and resource references
 
-2. **打包**技能（如果验证通过），创建一个以技能命名的 .skill 文件（例如 `my-skill.skill`），包含所有文件并保持正确的目录结构以供分发。.skill 文件是带有 .skill 扩展名的 zip 文件。
+2. **Package** the skill if validation passes, creating a .skill file named after the skill (e.g., `my-skill.skill`) that includes all files and maintains the proper directory structure for distribution. The .skill file is a zip file with a .skill extension.
 
-如果验证失败，脚本将报告错误并退出而不创建包。修复任何验证错误，然后再次运行打包命令。
+If validation fails, the script will report the errors and exit without creating a package. Fix any validation errors and run the packaging command again.
 
-### 步骤 6：迭代
+### Step 6: Iterate
 
-测试技能后，用户可能会请求改进。通常这发生在使用技能后，立即获得技能表现如何的新鲜上下文。
+After testing the skill, users may request improvements. Often this happens right after using the skill, with fresh context of how the skill performed.
 
-**迭代工作流程：**
+**Iteration workflow:**
 
-1. 在实际任务上使用技能
-2. 注意到困难或低效之处
-3. 识别 SKILL.md 或捆绑资源应该如何更新
-4. 实施更改并再次测试
+1. Use the skill on real tasks
+2. Notice struggles or inefficiencies
+3. Identify how SKILL.md or bundled resources should be updated
+4. Implement changes and test again

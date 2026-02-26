@@ -33,25 +33,21 @@ class ContextBuilder:
 
         memory = self.memory.get_memory_context()
         if memory:
-            parts.append(f"# 长期记忆\n\n{memory}")
-        
-        # Skills - progressive loading
-        # 1. Always-loaded skills: include full content
+            parts.append(f"# Memory\n\n{memory}")
+
         always_skills = self.skills.get_always_skills()
         if always_skills:
             always_content = self.skills.load_skills_for_context(always_skills)
             if always_content:
-                parts.append(f"# 已加载的技能\n\n{always_content}")
+                parts.append(f"# Active Skills\n\n{always_content}")
 
-        # 2. Available skills: only show summary (agent uses read_file to load)
         skills_summary = self.skills.build_skills_summary()
         if skills_summary:
-            parts.append(f"""# 技能（Skills）
+            parts.append(f"""# Skills
 
-以下技能可以扩展你的能力。要使用某个技能，请使用 read_file 工具读取其 SKILL.md 文件，再按其中的提示决定下一步行动。
-注意 available="false" 的技能需要先安装依赖项，遇到需要安装依赖项的，请停止工具调用、停止工具调用、停止工具调用，并将详细的依赖告知用户。
+The following skills extend your capabilities. To use a skill, read its SKILL.md file using the read_file tool.
+Skills with available="false" need dependencies installed first - you can try installing them with apt/brew.
 
-技能摘要（Skills Summary）：
 {skills_summary}""")
 
         return "\n\n---\n\n".join(parts)
@@ -61,32 +57,28 @@ class ContextBuilder:
         workspace_path = str(self.workspace.expanduser().resolve())
         system = platform.system()
         runtime = f"{'macOS' if system == 'Darwin' else system} {platform.machine()}, Python {platform.python_version()}"
+        
+        return f"""# nanobot 🐈
 
-        return f"""# 基本描述
+You are nanobot, a helpful AI assistant.
 
-以下是你的固有工具：
-- 文件读写操作
-- 执行 shell 命令
-- 搜索网页和获取网页内容
-- 为复杂的后台任务生成子代理
-
-## 运行环境
+## Runtime
 {runtime}
 
-## 工作空间
-你的工作空间位于：{workspace_path}
-- 长期记忆：{workspace_path}/memory/MEMORY.md（在这里写入重要的事实）
-- 历史记录：{workspace_path}/memory/HISTORY.md（可用 grep 搜索）
-- 自定义技能：{workspace_path}/skills/{{skill-name}}/SKILL.md
+## Workspace
+Your workspace is at: {workspace_path}
+- Long-term memory: {workspace_path}/memory/MEMORY.md (write important facts here)
+- History log: {workspace_path}/memory/HISTORY.md (grep-searchable)
+- Custom skills: {workspace_path}/skills/{{skill-name}}/SKILL.md
 
-## 指南
-- 在调用工具前说明意图，但在收到结果前切勿预测或声称结果。
-- 修改文件前请先读取其内容。不要假设文件或目录存在。
-- 写入或编辑文件后，若准确性至关重要，请重新读取该文件。
-- 如果工具调用失败，请在尝试不同方法之前先分析错误原因。
-- 当请求含糊不清时，请要求澄清。
-- 对话时直接回复文本。
-"""
+## nanobot Guidelines
+- State intent before tool calls, but NEVER predict or claim results before receiving them.
+- Before modifying a file, read it first. Do not assume files or directories exist.
+- After writing or editing a file, re-read it if accuracy matters.
+- If a tool call fails, analyze the error before retrying with a different approach.
+- Ask for clarification when the request is ambiguous.
+
+Reply directly with text for conversations. Only use the 'message' tool to send to a specific chat channel."""
 
     @staticmethod
     def _build_runtime_context(channel: str | None, chat_id: str | None) -> str:
@@ -97,7 +89,6 @@ class ContextBuilder:
         if channel and chat_id:
             lines += [f"Channel: {channel}", f"Chat ID: {chat_id}"]
         return ContextBuilder._RUNTIME_CONTEXT_TAG + "\n" + "\n".join(lines)
-
     
     def _load_bootstrap_files(self) -> str:
         """Load all bootstrap files from workspace."""

@@ -16,6 +16,7 @@ from nanobot.agent.memory import MemoryStore
 from nanobot.agent.subagent import SubagentManager
 from nanobot.agent.tools.cron import CronTool
 from nanobot.agent.tools.filesystem import EditFileTool, ListDirTool, ReadFileTool, WriteFileTool
+from nanobot.agent.tools.message import MessageTool
 from nanobot.agent.tools.registry import ToolRegistry
 from nanobot.agent.tools.shell import ExecTool
 from nanobot.agent.tools.spawn import SpawnTool
@@ -23,7 +24,6 @@ from nanobot.agent.tools.web import WebFetchTool, WebSearchTool
 from nanobot.bus.events import InboundMessage, OutboundMessage
 from nanobot.bus.queue import MessageBus
 from nanobot.providers.base import LLMProvider
-from nanobot.providers.minimax_usage import query_minimax_usage
 from nanobot.session.manager import Session, SessionManager
 
 if TYPE_CHECKING:
@@ -52,15 +52,13 @@ class AgentLoop:
         max_iterations: int = 40,
         temperature: float = 0.1,
         max_tokens: int = 4096,
-        memory_window: int = 50,
-        tavily_api_key: str | None = None,
+        memory_window: int = 100,
+        brave_api_key: str | None = None,
         exec_config: ExecToolConfig | None = None,
         cron_service: CronService | None = None,
         restrict_to_workspace: bool = False,
         session_manager: SessionManager | None = None,
         mcp_servers: dict | None = None,
-        provider_name: str | None = None,
-        provider_api_key: str | None = None,
         channels_config: ChannelsConfig | None = None,
     ):
         from nanobot.config.schema import ExecToolConfig
@@ -73,7 +71,7 @@ class AgentLoop:
         self.temperature = temperature
         self.max_tokens = max_tokens
         self.memory_window = memory_window
-        self.tavily_api_key = tavily_api_key
+        self.brave_api_key = brave_api_key
         self.exec_config = exec_config or ExecToolConfig()
         self.cron_service = cron_service
         self.restrict_to_workspace = restrict_to_workspace
@@ -88,7 +86,7 @@ class AgentLoop:
             model=self.model,
             temperature=self.temperature,
             max_tokens=self.max_tokens,
-            tavily_api_key=tavily_api_key,
+            brave_api_key=brave_api_key,
             exec_config=self.exec_config,
             restrict_to_workspace=restrict_to_workspace,
         )
@@ -99,22 +97,11 @@ class AgentLoop:
         self._mcp_connected = False
         self._mcp_connecting = False
         self._consolidating: set[str] = set()  # Session keys with consolidation in progress
-        self.provider_name = provider_name
-        self.provider_api_key = provider_api_key
         self._consolidation_tasks: set[asyncio.Task] = set()  # Strong refs to in-flight tasks
         self._consolidation_locks: dict[str, asyncio.Lock] = {}
         self._active_tasks: dict[str, list[asyncio.Task]] = {}  # session_key -> tasks
         self._processing_lock = asyncio.Lock()
         self._register_default_tools()
-
-    async def _append_minimax_usage(self, content: str) -> str:
-        """Append MiniMax usage info to content if applicable."""
-        if self.provider_name != "minimax" or not self.provider_api_key:
-            return content
-        usage = await query_minimax_usage(self.provider_api_key)
-        if usage:
-            return content + usage
-        return content
 
     def _register_default_tools(self) -> None:
         """Register the default set of tools."""
@@ -127,8 +114,9 @@ class AgentLoop:
             restrict_to_workspace=self.restrict_to_workspace,
             path_append=self.exec_config.path_append,
         ))
-        self.tools.register(WebSearchTool(api_key=self.tavily_api_key))
+        self.tools.register(WebSearchTool(api_key=self.brave_api_key))
         self.tools.register(WebFetchTool())
+        self.tools.register(MessageTool(send_callback=self.bus.publish_outbound))
         self.tools.register(SpawnTool(manager=self.subagents))
         if self.cron_service:
             self.tools.register(CronTool(self.cron_service))
@@ -157,6 +145,10 @@ class AgentLoop:
 
     def _set_tool_context(self, channel: str, chat_id: str, message_id: str | None = None) -> None:
         """Update context for all tools that need routing info."""
+        if message_tool := self.tools.get("message"):
+            if isinstance(message_tool, MessageTool):
+                message_tool.set_context(channel, chat_id, message_id)
+
         if spawn_tool := self.tools.get("spawn"):
             if isinstance(spawn_tool, SpawnTool):
                 spawn_tool.set_context(channel, chat_id)
@@ -193,17 +185,8 @@ class AgentLoop:
         final_content = None
         tools_used: list[str] = []
 
-        # 用于累积进度消息，每5次发送一次
-        pending_progress: list[str] = []
-        PROGRESS_INTERVAL = 5
-
         while iteration < self.max_iterations:
             iteration += 1
-
-            logger.debug("Agent iteration {} started", iteration)
-
-            # 收集本迭代的所有消息
-            iteration_messages: list[str] = []
 
             response = await self.provider.chat(
                 messages=messages,
@@ -213,22 +196,7 @@ class AgentLoop:
                 max_tokens=self.max_tokens,
             )
 
-            # 记录 LLM 响应
-            content_preview = response.content[:100] + "..." if response.content and len(response.content) > 100 else response.content
             if response.has_tool_calls:
-                logger.info("LLM response (iteration {}): has {} tool calls", iteration, len(response.tool_calls))
-            else:
-                logger.info("LLM response (iteration {}): {}", iteration, content_preview)
-
-            if response.has_tool_calls:
-                # 0. 添加迭代轮次标记
-                iteration_messages.append(f"⌛️迭代轮次: {iteration}")
-
-                # 1. 添加 LLM 推理内容
-                if response.reasoning_content:
-                    iteration_messages.append(f"💭{response.reasoning_content.replace('\n', '')}")
-
-                # 2. 添加去思考标签后的内容（如果有）
                 if on_progress:
                     clean = self._strip_think(response.content)
                     if clean:
@@ -251,43 +219,15 @@ class AgentLoop:
                     reasoning_content=response.reasoning_content,
                 )
 
-                # 3. 执行工具并收集结果
                 for tool_call in response.tool_calls:
                     tools_used.append(tool_call.name)
                     args_str = json.dumps(tool_call.arguments, ensure_ascii=False)
-                    logger.info("Tool call: {}({})", tool_call.name, args_str[:50])
+                    logger.info("Tool call: {}({})", tool_call.name, args_str[:200])
                     result = await self.tools.execute(tool_call.name, tool_call.arguments)
-                    if isinstance(result, str):
-                        result = result.replace('\n', '')
-                    # 截断过长的结果
-                    result_preview = result[:50] + "..." if len(str(result)) > 200 else result
-                    iteration_messages.append(f"⚙️{tool_call.name} - {result_preview}")
                     messages = self.context.add_tool_result(
                         messages, tool_call.id, tool_call.name, result
                     )
-
-                # 4. 迭代结束，累积进度消息
-                pending_progress.extend(iteration_messages)
-                logger.info("Agent iteration {} completed", iteration)
-
-                # 每5次或最后一次迭代发送累积的消息
-                if iteration % PROGRESS_INTERVAL == 0 or iteration == self.max_iterations:
-                    if on_progress:
-                        await on_progress("\n\n".join(pending_progress))
-                    pending_progress = []  # 清空累积的消息
             else:
-                # 无工具调用，直接返回最终响应（由调用方发送）
-                final_content = self._strip_think(response.content)
-                # 添加最终迭代轮次标记
-                if iteration > 1:
-                    final_content = f"✅最终迭代轮次: {iteration}\n\n{final_content}"
-                break
-
-        # 循环结束后，发送剩余的累积进度消息（如果有）
-        if pending_progress and on_progress:
-            await on_progress("\n\n".join(pending_progress))
-
-        return final_content, tools_used
                 clean = self._strip_think(response.content)
                 messages = self.context.add_assistant_message(
                     messages, clean, reasoning_content=response.reasoning_content,
@@ -407,14 +347,11 @@ class AgentLoop:
                 history=history,
                 current_message=msg.content, channel=channel, chat_id=chat_id,
             )
-            final_content, _ = await self._run_agent_loop(messages)
-            final_content = await self._append_minimax_usage(final_content or "Background task completed.")
-            session.add_message("user", f"[System: {msg.sender_id}] {msg.content}")
-            session.add_message("assistant", final_content)
             final_content, _, all_msgs = await self._run_agent_loop(messages)
             self._save_turn(session, all_msgs, 1 + len(history))
             self.sessions.save(session)
-            return OutboundMessage(channel=channel, chat_id=chat_id, content=final_content)
+            return OutboundMessage(channel=channel, chat_id=chat_id,
+                                  content=final_content or "Background task completed.")
 
         preview = msg.content[:80] + "..." if len(msg.content) > 80 else msg.content
         logger.info("Processing message from {}:{}: {}", msg.channel, msg.sender_id, preview)
@@ -477,6 +414,9 @@ class AgentLoop:
             self._consolidation_tasks.add(_task)
 
         self._set_tool_context(msg.channel, msg.chat_id, msg.metadata.get("message_id"))
+        if message_tool := self.tools.get("message"):
+            if isinstance(message_tool, MessageTool):
+                message_tool.start_turn()
 
         history = session.get_history(max_messages=self.memory_window)
         initial_messages = self.context.build_messages(
@@ -501,13 +441,15 @@ class AgentLoop:
         if final_content is None:
             final_content = "I've completed processing but have no response to give."
 
-        final_content = await self._append_minimax_usage(final_content)
-
         preview = final_content[:120] + "..." if len(final_content) > 120 else final_content
         logger.info("Response to {}:{}: {}", msg.channel, msg.sender_id, preview)
 
         self._save_turn(session, all_msgs, 1 + len(history))
         self.sessions.save(session)
+
+        if message_tool := self.tools.get("message"):
+            if isinstance(message_tool, MessageTool) and message_tool._sent_in_turn:
+                return None
 
         return OutboundMessage(
             channel=msg.channel, chat_id=msg.chat_id, content=final_content,

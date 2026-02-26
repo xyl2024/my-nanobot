@@ -198,68 +198,7 @@ def onboard():
 
 
 
-def _get_builtin_templates() -> dict[str, str]:
-    """Get built-in template content from my_prompts directory."""
-    import nanobot
-
-    # Find project root (parent of nanobot package)
-    package_dir = Path(nanobot.__file__).parent
-    project_root = package_dir.parent
-    prompts_dir = project_root / "my_prompts"
-
-    templates = {}
-    if prompts_dir.exists():
-        for filename in prompts_dir.glob("*.md"):
-            content = filename.read_text(encoding="utf-8")
-            templates[filename.name] = content
-
-    return templates
-
-
 def _create_workspace_templates(workspace: Path):
-    """Create default workspace template files."""
-    # Try to load templates from my_prompts directory
-    templates = _get_builtin_templates()
-
-    # Fallback to built-in defaults if no custom templates found
-    defaults = {
-        "SOUL.md": """# 灵魂
-
-我是 nanobot，一个轻量级的 AI 助手。
-
-## 性格
-
-- 乐于助人且友好
-- 简洁明了
-- 好奇心强，渴望学习
-
-## 价值观
-
-- 准确优先于速度
-- 保护用户隐私和安全
-- 行动透明
-""",
-        "USER.md": """# 用户
-
-此处存放用户信息。
-
-## 偏好
-
-- 沟通风格：（随意/正式）
-- 时区：（你的时区）
-- 语言：（你的首选语言）
-""",
-    }
-
-    # Use custom templates if available, otherwise use defaults
-    for filename, default_content in defaults.items():
-        content = templates.get(filename, default_content)
-        file_path = workspace / filename
-        if not file_path.exists():
-            file_path.write_text(content, encoding="utf-8")
-            console.print(f"  [dim]Created {filename}[/dim]")
-    
-    # Create memory directory and MEMORY.md
     """Create default workspace template files from bundled templates."""
     from importlib.resources import files as pkg_files
 
@@ -279,22 +218,6 @@ def _create_workspace_templates(workspace: Path):
     memory_template = templates_dir / "memory" / "MEMORY.md"
     memory_file = memory_dir / "MEMORY.md"
     if not memory_file.exists():
-        memory_file.write_text("""# 长期记忆
-
-此文件存储跨会话应持久化的重要信息。
-
-## 用户信息
-
-（关于用户的重要事实）
-
-## 偏好
-
-（随时间学习的用户偏好）
-
-## 重要笔记
-
-（需要记住的事情）
-""", encoding="utf-8")
         memory_file.write_text(memory_template.read_text(encoding="utf-8"), encoding="utf-8")
         console.print("  [dim]Created memory/MEMORY.md[/dim]")
 
@@ -389,14 +312,12 @@ def gateway(
         max_tokens=config.agents.defaults.max_tokens,
         max_iterations=config.agents.defaults.max_tool_iterations,
         memory_window=config.agents.defaults.memory_window,
-        tavily_api_key=config.tools.web.search.tavily_api_key or config.tools.web.search.api_key or None,
+        brave_api_key=config.tools.web.search.api_key or None,
         exec_config=config.tools.exec,
         cron_service=cron,
         restrict_to_workspace=config.tools.restrict_to_workspace,
         session_manager=session_manager,
         mcp_servers=config.tools.mcp_servers,
-        provider_name=config.get_provider_name(),
-        provider_api_key=config.get_api_key(),
         channels_config=config.channels,
     )
     
@@ -548,13 +469,11 @@ def agent(
         max_tokens=config.agents.defaults.max_tokens,
         max_iterations=config.agents.defaults.max_tool_iterations,
         memory_window=config.agents.defaults.memory_window,
-        tavily_api_key=config.tools.web.search.tavily_api_key or config.tools.web.search.api_key or None,
+        brave_api_key=config.tools.web.search.api_key or None,
         exec_config=config.tools.exec,
         cron_service=cron,
         restrict_to_workspace=config.tools.restrict_to_workspace,
         mcp_servers=config.tools.mcp_servers,
-        provider_name=config.get_provider_name(),
-        provider_api_key=config.get_api_key(),
         channels_config=config.channels,
     )
     
@@ -579,9 +498,7 @@ def agent(
         async def run_once():
             with _thinking_ctx():
                 response = await agent_loop.process_direct(message, session_id, on_progress=_cli_progress)
-            # When logs are enabled, logger already outputs the response via logger.info
-            if not logs:
-                _print_agent_response(response, render_markdown=markdown)
+            _print_agent_response(response, render_markdown=markdown)
             await agent_loop.close_mcp()
 
         asyncio.run(run_once())
@@ -1043,12 +960,10 @@ def cron_run(
         max_tokens=config.agents.defaults.max_tokens,
         max_iterations=config.agents.defaults.max_tool_iterations,
         memory_window=config.agents.defaults.memory_window,
-        tavily_api_key=config.tools.web.search.tavily_api_key or config.tools.web.search.api_key or None,
+        brave_api_key=config.tools.web.search.api_key or None,
         exec_config=config.tools.exec,
         restrict_to_workspace=config.tools.restrict_to_workspace,
         mcp_servers=config.tools.mcp_servers,
-        provider_name=config.get_provider_name(),
-        provider_api_key=config.get_api_key(),
         channels_config=config.channels,
     )
 
